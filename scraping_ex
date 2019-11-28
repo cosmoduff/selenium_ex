@@ -15,6 +15,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.support import expected_conditions as EC 
 from selenium.webdriver.common.action_chains import ActionChains
+from selenium.webdriver.firefox.firefox_profile import FirefoxProfile
 
 
 def get_args():
@@ -29,8 +30,10 @@ def get_args():
     return parser.parse_args()
 
 
-def get_dell(driver, model):
+def get_dell(driver, server):
     timeout = 20
+
+    model = dell_model(server['Model'])
     
     url = "https://www.dell.com/support/home/us/en/04/product-support/product/" + model.lower() + "/drivers"
     try:
@@ -41,11 +44,6 @@ def get_dell(driver, model):
         action = ActionChains(driver)
         action.move_to_element(body).perform()
         
-        #search = driver.find_element_by_xpath("//input[@id='keyword']")
-        #search.clear()
-        #search.send_keys("bios")
-        #search.send_keys(Keys.RETURN)
-
         WebDriverWait(driver, timeout).until(
             EC.visibility_of_element_located(
                 (By.XPATH, "//select[@id='operating-system']")
@@ -72,6 +70,11 @@ def get_dell(driver, model):
         cat_select = driver.find_element_by_xpath("//select[@id='ddl-category']")
         cat_select.click()
 
+        WebDriverWait(driver, timeout).until(
+            EC.visibility_of_element_located(
+                (By.XPATH,"//option[@value='BI']")
+            )
+        )
         cat_bios_sel = driver.find_element_by_xpath("//option[@value='BI']")
         cat_bios_sel.click()
 
@@ -79,8 +82,8 @@ def get_dell(driver, model):
     
     except Exception as e:
         print(e)
-        sys.exit(1)
         driver.quit()
+        sys.exit(1)
     
     list_items = source.find_all('td')
     
@@ -89,7 +92,12 @@ def get_dell(driver, model):
     for item in list_items:
         match = ver.search(item.text)
         if match:
-            print(match.group(1))
+            server['BIOS'] = match.group(1)
+
+    if not 'BIOS' in server:
+        server['BIOS'] = None
+
+    return server
 
 
 def dell_model(name):
@@ -103,20 +111,44 @@ def main():
         options.headless = False
     else:
         options.headless = True
+
+    profile = FirefoxProfile()
+    profile.set_preference("browser.privatebrowsing.autostart", True)
     
     try:
-        driver = webdriver.Firefox(options=options)
+        driver = webdriver.Firefox(firefox_profile=profile, options=options)
     except:
         print("Failed to initiate web driver")
         sys.exit(1)
         
-    models = ['Poweredge R630 ', ' Poweredge R330', 'Poweredge R730', 'Poweredge R930']
+    models = [
+        {
+            'Model': 'Poweredge R630',
+            'Vendor': 'Dell',
+        }, 
+        {
+            'Model': 'Poweredge R330',
+            'Vendor': 'Dell',
+        }, 
+        {
+            'Model': 'Poweredge R730',
+            'Vendor': 'Dell',
+        }, 
+        {
+            'Model': 'Poweredge R930',
+            'Vendor': 'Dell',
+        }, 
+    ]
     
+    out_dat = []
+
     for model in models:
-        get_dell(driver, dell_model(model))
+        if model['Vendor'].lower() == 'dell':
+            out_dat.append(get_dell(driver, model))
     
     driver.quit()
 
+    print(out_dat)
 
 if __name__ == '__main__':
     main()
