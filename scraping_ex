@@ -4,8 +4,11 @@ import re
 import sys
 from argparse import ArgumentParser as AP
 
-
 from bs4 import BeautifulSoup
+import requests
+from requests.exceptions import HTTPError
+
+from pyvirtualdisplay import Display
 
 from selenium import webdriver 
 from selenium.webdriver.common.by import By 
@@ -28,6 +31,146 @@ def get_args():
     )
 
     return parser.parse_args()
+
+
+def hp_model(model):
+    return model.split()[1]
+
+
+def get_hp(driver, server):
+    timeout = 60
+
+    model = hp_model(server['Model'])
+    print(f'Model: {model}')
+
+    if "gen9" in server['Model'].lower():
+        url = "https://support.hpe.com/hpsc/doc/public/display?docId=emr_na-c05324275"
+
+    try:
+        response = requests.get(url)
+        response.raise_for_status()
+    except HTTPError as http_err:
+        print(f'HTTP error occurred: {http_err}')
+        sys.exit(1)
+    except Exception as e:
+        print(f'An unexpected error occured: {e}')
+        sys.exit(1)
+
+    servers_soup = BeautifulSoup(response.text, 'html.parser')
+
+    search_str = r'(.*' + model.lower() + '.*)'
+    print(f'Search string: {search_str}')
+
+    pattern = re.compile(search_str)
+
+    tds = servers_soup.find_all('td')
+
+    if not tds:
+        print('Unable to locate find tds in text')
+        print(servers_soup.prettify())
+        sys.exit(1)
+
+    #for block in servers_soup.find_all('td'):
+    for block in servers_soup.find_all('td'):
+        #print(f'td: {td}')
+        text = block.get_text().strip().lower()
+        #match = pattern.match(text)
+        if pattern.match(text):
+            link = block.find_next('a').get('href')
+            break
+        else:
+            print(f'Failed string: {block.get_text().lower()}')
+            return server 
+
+    try:
+        driver.get(link)
+
+        # wait for the bios quick filter to become visible
+        WebDriverWait(driver, timeout).until(
+            EC.visibility_of_element_located(
+                (By.XPATH, "//a[@id='biosanchor']")
+            )
+        )
+
+        print("Found the biosquickfilter")
+
+        # find and click the bios quick filter
+        bios_button = driver.find_element_by_xpath("//div[@id='biosquickfilter']")
+        bios_button.click()
+
+        print("The bios button was clicked")
+
+        # resizing because for some reason it does not work otherwise
+        #driver.set_window_size(1366, 1307)
+        #print(f'Size: {driver.get_window_size()}')
+
+        # wait for the results to be visible
+        WebDriverWait(driver, timeout).until(
+            EC.visibility_of_element_located(
+                (By.XPATH, "//div[@class='coveo-list-layout CoveoResult']")
+            )
+        )
+        #WebDriverWait(driver, timeout).until(
+        #    EC.visibility_of_element_located(
+        #        (By.XPATH, "//div[@class='CoveoResultList']")
+        #    )
+        #)
+
+        print("Found table")
+
+        #heading = driver.find_element_by_xpath("//h2[@class='grommetux-heading']")
+
+        #action = ActionChains(driver)
+        #action.move_to_element(heading).perform()
+
+        source = BeautifulSoup(driver.page_source, 'html.parser')
+        print("Got source")
+    except Exception as e:
+        source = driver.page_source
+        print(f'Error: {e}')
+        driver.get_screenshot_as_file('Failed_hp.png')
+        if re.search("coveo-list-layout CoveoResult", source):
+            print("Found table")
+        driver.close()
+
+        sys.exit(1)
+        
+    res_box = source.find('div', {'class': 'CoveoResultList'})
+
+    if res_box:
+        print("Found results box")
+    else:
+        print("Did not find results box")
+
+    bios_items = res_box.findChildren(
+        "div", 
+        {'class': "coveo-result-cell hpe-coveo-swd-type-id-row"}
+    )
+
+    if bios_items:
+        print("Found bios items")
+    else:
+        print("Could not find bios items")
+
+    re_ver = re.compile('^(\d+)\.(\d+)')
+
+    for item in bios_items:
+        print(item)
+        version_field = item.find("span", 
+            {
+                "class": "CoveoFieldValue",
+                "data-field": "@kmswitemversion"
+            }
+        )
+
+        version = version_field.find('span')
+
+        if re_ver.search(version.text):
+            print(f'Found: {version.text}')
+
+    server['BIOS'] = None
+
+    return server
 
 
 def get_dell(driver, server):
@@ -111,6 +254,8 @@ def main():
         options.headless = False
     else:
         options.headless = True
+        #display = Display(visible=0, size=(1366, 1037))
+        #display.start()
 
     profile = FirefoxProfile()
     profile.set_preference("browser.privatebrowsing.autostart", True)
@@ -121,6 +266,8 @@ def main():
         print("Failed to initiate web driver")
         sys.exit(1)
         
+    print(f'Size: {driver.get_window_size()}')
+
     models = [
         {
             'Model': 'Poweredge R630',
@@ -138,15 +285,23 @@ def main():
             'Model': 'Poweredge R930',
             'Vendor': 'Dell',
         }, 
+        {
+            'Model': 'ProLiant DL380 Gen9',
+            'Vendor': 'HP',
+        }, 
     ]
     
     out_dat = []
 
     for model in models:
         if model['Vendor'].lower() == 'dell':
-            out_dat.append(get_dell(driver, model))
+            #out_dat.append(get_dell(driver, model))
+            continue
+        elif model['Vendor'].lower() == 'hp':
+            out_dat.append(get_hp(driver, model))
     
-    driver.quit()
+    if not args.debug:
+        driver.quit()
 
     print(out_dat)
 

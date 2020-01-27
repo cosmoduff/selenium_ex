@@ -1,2 +1,4 @@
 selenium
+requests
 BeautifulSoup4
+pyvirtualdisplay
