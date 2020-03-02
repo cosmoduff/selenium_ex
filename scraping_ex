@@ -33,6 +33,45 @@ def get_args():
     return parser.parse_args()
 
 
+def get_oracle(server):
+    model = server['Model']
+
+    fw_re = re.compile('(^Sun System Firmware \d*\.\d*\.\d*(\.[a-z])?)')
+
+    fw_url = "https://www.oracle.com/technetwork/systems/patches/firmware/release-history-jsp-138416.html"
+
+    try:
+        response = requests.get(fw_url)
+        response.raise_for_status()
+    except HTTPError as http_err:
+        print(f'HTTP error occurred: {http_err}')
+        sys.exit(1)
+    except Exception as e:
+        print(f'An unexpected error occured: {e}')
+        sys.exit(1)
+
+    servers_soup = BeautifulSoup(response.text, 'html.parser')
+
+    # find the table with all the fw versions
+    table = servers_soup.find('table', class_="vatop")
+
+    # starting from the table look for the link containing this model
+    for link in table.find_all('a'):
+        if model.lower() in link.text.lower():
+            link = link
+            break
+
+    # the newest fw version is the next fw tag
+    fw_ver = link.find_next('strong')
+
+    # extract the fw version from the text
+    ver = fw_re.match(fw_ver.text).groups(0)[0]
+
+    server['BIOS'] = ver
+
+    return server
+
+
 def hp_model(model):
     return model.split()[1]
 
@@ -289,6 +328,14 @@ def main():
             'Model': 'ProLiant DL380 Gen9',
             'Vendor': 'HP',
         }, 
+        {
+            'Model': 'T5-4',
+            'Vendor': 'Oracle',
+        }, 
+        {
+            'Model': 'T5-2',
+            'Vendor': 'Oracle',
+        }, 
     ]
     
     out_dat = []
@@ -298,7 +345,11 @@ def main():
             #out_dat.append(get_dell(driver, model))
             continue
         elif model['Vendor'].lower() == 'hp':
-            out_dat.append(get_hp(driver, model))
+            ### Need to finish HP site is being very difficult
+            #out_dat.append(get_hp(driver, model))
+            continue
+        elif model['Vendor'].lower() == 'oracle':
+            out_dat.append(get_oracle(model))
     
     if not args.debug:
         driver.quit()
