@@ -1,19 +1,17 @@
-# See PEP 518: https://www.python.org/dev/peps/pep-0518/ for info on this file's structure.
-
-[tool.pyflow]
+[tool.poetry]
 name = "fw_pull"
-py_version = "3.6"
 version = "0.1.0"
+description = "Pulls vendor BIOS firmware from Dell HP and Oracle"
+authors = ["Seth Swanson <seth.swanson@leidos.com>"]
 
-
-[tool.pyflow.scripts]
-
-
-[tool.pyflow.dependencies]
+[tool.poetry.dependencies]
+python = "^3.6"
 requests = "^2.23.0"
-selenium = "^3.141.0"
 bs4 = "^0.0.1"
+selenium = "^3.141.0"
 
+[tool.poetry.dev-dependencies]
 
-[tool.pyflow.dev-dependencies]
-
+[build-system]
+requires = ["poetry>=0.12"]
+build-backend = "poetry.masonry.api"
