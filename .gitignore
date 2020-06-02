@@ -1,4 +1,4 @@
 *.png
 *.log
 *.txt
-selenium_ex/*
+__pypackages__
