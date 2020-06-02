@@ -36,6 +36,12 @@ def get_args():
         required=True,
         help="JSON file containing the server models to retrieve fw info for",
     )
+    parser.add_argument(
+        "-o",
+        "--output",
+        required=False,
+        help="File to write JSON data to",
+    )
 
     return parser.parse_args()
 
@@ -49,6 +55,18 @@ def read_json(path):
         sys.exit(1)
     except OSError as e:
         print(f"Could not read {path}: {e}")
+        sys.exit(1)
+
+
+def write_json(data, path):
+    try:
+        with open(path, 'w') as f:
+            return json.dump(data, f)
+    except TypeError as e:
+        print(f"Failed to encode json: {e}")
+        sys.exit(1)
+    except OSError as e:
+        print(f"Could not write {path}: {e}")
         sys.exit(1)
 
 
@@ -419,7 +437,10 @@ def main():
     if not args.debug:
         driver.quit()
 
-    print(out_dat)
+    if args.output:
+        write_json(out_dat, args.output)
+    else:
+        print(out_dat)
 
 if __name__ == '__main__':
     main()
