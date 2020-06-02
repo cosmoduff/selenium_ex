@@ -2,13 +2,14 @@
 
 import re
 import sys
+import json
 from argparse import ArgumentParser as AP
 
 from bs4 import BeautifulSoup
 import requests
 from requests.exceptions import HTTPError
 
-from pyvirtualdisplay import Display
+#from pyvirtualdisplay import Display
 
 from selenium import webdriver 
 from selenium.webdriver.common.by import By 
@@ -22,15 +23,33 @@ from selenium.webdriver.firefox.firefox_profile import FirefoxProfile
 
 
 def get_args():
-    parser = AP(description="Gets the latest firmware version from Dells site")
+    parser = AP(description="Gets the latest firmware version from vendor sites")
     parser.add_argument(
         "-d",
         "--debug",
         help="Turns on debug mode and loads the driver in the foreground",
         action="store_true"
     )
+    parser.add_argument(
+        "-i",
+        "--input",
+        required=True,
+        help="JSON file containing the server models to retrieve fw info for",
+    )
 
     return parser.parse_args()
+
+
+def read_json(path):
+    try:
+        with open(path, 'r') as f:
+            return json.load(f)
+    except json.JSONDecodeError as e:
+        print(f"Failed to decode json: {e}")
+        sys.exit(1)
+    except OSError as e:
+        print(f"Could not read {path}: {e}")
+        sys.exit(1)
 
 
 def get_oracle(server):
@@ -83,15 +102,13 @@ def get_oracle(server):
     return server
 
 
+# No longer needed since we have to search for the HPs
 def hp_model(model):
     return model.split()[1]
 
 
 def get_hp(driver, server):
     timeout = 60
-
-    model = hp_model(server['Model'])
-    print(f'Model: {model}')
 
     url = "https://support.hpe.com/hpesc/public/home"
 
@@ -110,98 +127,100 @@ def get_hp(driver, server):
         search_box.send_keys(server['Model'])
         search_box.send_keys(Keys.RETURN)
 
-        /html/body/div[1]/div[1]/div/div[3]/div/div/div[4]/div[2]/div[14]/div[1]/div/div[1]/div/div[2]/div[2]/div[2]/div
-
-        # wait for result links
+        # wait for bios link
         WebDriverWait(driver, timeout).until(
             EC.visibility_of_element_located(
-                (By.XPATH, "/html/body/div[1]/div/div[3]/div/div[1]/div/div[2]/div[1]/div/div[1]/div/div/div[2]/div[1]/div[3]/div[3]/div[1]/input")
+                (By.XPATH, "/html/body/div[1]/div[1]/div/div[3]/div/div/div[4]/div[2]/div[14]/div[1]/div/div[1]/div/div[2]/div[2]/div[2]/div/a[1]")
             )
         )
-#        # wait for the bios quick filter to become visible
+
+        bios_link = driver.find_element_by_xpath("/html/body/div[1]/div[1]/div/div[3]/div/div/div[4]/div[2]/div[14]/div[1]/div/div[1]/div/div[2]/div[2]/div[2]/div/a[1]")
+        bios_link.click()
+
+        # wait for the bios quick filter to become visible
+        WebDriverWait(driver, timeout).until(
+            EC.visibility_of_element_located(
+                (By.XPATH, "//a[@id='biosanchor']")
+            )
+        )
+
+        # find and click the bios quick filter
+        bios_button = driver.find_element_by_xpath("//div[@id='biosquickfilter']")
+        bios_button.click()
+
+#        # wait for field containing the bios version
 #        WebDriverWait(driver, timeout).until(
 #            EC.visibility_of_element_located(
-#                (By.XPATH, "//a[@id='biosanchor']")
+#                (By.XPATH, "/html/body/div[1]/div[1]/div/div[3]/div/div/div[4]/div[3]/div[5]/div[10]/div/div[1]/div/div/div[2]/div/div[3]/div[1]/span[3]/span")
 #            )
 #        )
 #
-#        print("Found the biosquickfilter")
+#        print("Bios field is there")
 #
-#        # find and click the bios quick filter
-#        bios_button = driver.find_element_by_xpath("//div[@id='biosquickfilter']")
-#        bios_button.click()
+#        bios_field = driver.find_element_by_xpath("/html/body/div[1]/div[1]/div/div[3]/div/div/div[4]/div[3]/div[5]/div[10]/div/div[1]/div/div/div[2]/div/div[3]/div[1]/span[3]/span")
+#        bios_field.click()
 #
-#        print("The bios button was clicked")
-#
-#        # resizing because for some reason it does not work otherwise
-#        #driver.set_window_size(1366, 1307)
-#        #print(f'Size: {driver.get_window_size()}')
-#
-#        # wait for the results to be visible
-#        WebDriverWait(driver, timeout).until(
-#            EC.visibility_of_element_located(
-#                (By.XPATH, "//div[@class='coveo-list-layout CoveoResult']")
-#            )
-#        )
-#        #WebDriverWait(driver, timeout).until(
-#        #    EC.visibility_of_element_located(
-#        #        (By.XPATH, "//div[@class='CoveoResultList']")
-#        #    )
-#        #)
-#
-#        print("Found table")
-#
-#        #heading = driver.find_element_by_xpath("//h2[@class='grommetux-heading']")
-#
-#        #action = ActionChains(driver)
-#        #action.move_to_element(heading).perform()
-#
-#        source = BeautifulSoup(driver.page_source, 'html.parser')
-#        print("Got source")
+#        field_html = bios_field.get_attribute('outerHTML')
+#        field_src = BeautifulSoup(field_html, 'html.parser')
+#        print(field_src.text)
+
+        driver.execute_script("window.scrollTo(0, document.body.scrollHeight/8);")
+
+        #wait for more details button
+        WebDriverWait(driver, timeout).until(
+            EC.visibility_of_element_located(
+                (By.XPATH, "/html/body/div[1]/div[1]/div/div[3]/div/div/div[4]/div[3]/div[5]/div[10]/div/div[1]/div/div/div[3]/div/div[1]")
+            )
+        )
+
+        more_details = driver.find_element_by_xpath("/html/body/div[1]/div[1]/div/div[3]/div/div/div[4]/div[3]/div[5]/div[10]/div/div[1]/div/div/div[3]/div/div[1]")
+        more_details.click()
+
+        # wait for the link to the dl page to be visible
+        WebDriverWait(driver, timeout).until(
+            EC.visibility_of_element_located(
+                (By.XPATH, "/html/body/div[1]/div[1]/div/div[3]/div/div/div[4]/div[3]/div[5]/div[10]/div/div[1]/div/div/div[3]/div/div[2]/table/tbody/tr[1]/td/span/a")
+            )
+        )
+        dl_link = driver.find_element_by_xpath("/html/body/div[1]/div[1]/div/div[3]/div/div/div[4]/div[3]/div[5]/div[10]/div/div[1]/div/div/div[3]/div/div[2]/table/tbody/tr[1]/td/span/a")
+
+        # get the a tag
+        link_outter = dl_link.get_attribute('outerHTML')
+        link_html = BeautifulSoup(link_outter, 'html.parser')
+
+        driver.get(link_html.a['href'])
+
+        # wait for revision history
+        WebDriverWait(driver, timeout).until(
+            EC.visibility_of_element_located(
+                (By.XPATH, "//*[@id='ui-id-6']")
+            )
+        )
+        rev_history = driver.find_element_by_xpath("//*[@id='ui-id-6']")
+        rev_history.click()
+    
+        source = BeautifulSoup(driver.page_source, 'html.parser')
+
     except Exception as e:
         source = driver.page_source
         print(f'Error: {e}')
         driver.get_screenshot_as_file('Failed_hp.png')
-        if re.search("coveo-list-layout CoveoResult", source):
-            print("Found table")
-        driver.close()
-
+        #driver.close()
         sys.exit(1)
-        
-#    res_box = source.find('div', {'class': 'CoveoResultList'})
-#
-#    if res_box:
-#        print("Found results box")
-#    else:
-#        print("Did not find results box")
-#
-#    bios_items = res_box.findChildren(
-#        "div", 
-#        {'class': "coveo-result-cell hpe-coveo-swd-type-id-row"}
-#    )
-#
-#    if bios_items:
-#        print("Found bios items")
-#    else:
-#        print("Could not find bios items")
-#
-#    re_ver = re.compile('^(\d+)\.(\d+)')
-#
-#    for item in bios_items:
-#        print(item)
-#        version_field = item.find("span", 
-#            {
-#                "class": "CoveoFieldValue",
-#                "data-field": "@kmswitemversion"
-#            }
-#        )
-#
-#        version = version_field.find('span')
-#
-#        if re_ver.search(version.text):
-#            print(f'Found: {version.text}')
-#
-#    server['GA Firmware Version'] = None
+
+    ga_fw = None
+    approved_fw = None
+    bold_tags = source.find_all('b')
+    for tag in bold_tags:
+        if tag.text.startswith("Version"):
+            fw = tag.text.split(":")[1].split("_")[0]
+            if not ga_fw:
+                ga_fw = fw
+            elif ga_fw and not approved_fw and fw != ga_fw:
+                approved_fw = fw
+
+    server['GA Firmware Version'] = ga_fw
+    server['N-1 Apporved Firmware'] = approved_fw
 
     return server
 
@@ -344,51 +363,58 @@ def main():
     except:
         print("Failed to initiate web driver")
         sys.exit(1)
-        
-    models = [
-        {
-            'Model': 'Poweredge R630',
-            'Vendor': 'Dell',
-        }, 
-        {
-            'Model': 'Poweredge R330',
-            'Vendor': 'Dell',
-        }, 
-        {
-            'Model': 'Poweredge R730',
-            'Vendor': 'Dell',
-        }, 
-        {
-            'Model': 'Poweredge R930',
-            'Vendor': 'Dell',
-        }, 
-        {
-            'Model': 'ProLiant DL380 Gen9',
-            'Vendor': 'HP',
-        }, 
-        {
-            'Model': 'T5-4',
-            'Vendor': 'Oracle',
-        }, 
-        {
-            'Model': 'T5-2',
-            'Vendor': 'Oracle',
-        }, 
-    ]
+
+    driver.set_window_size(952, 1047)
+
+    if args.debug:
+        print(driver.get_window_size())
+
+    models = read_json(args.input)
+
+#    models = [
+#        {
+#            'Model': 'Poweredge R630',
+#            'Vendor': 'Dell',
+#        }, 
+#        {
+#            'Model': 'Poweredge R330',
+#            'Vendor': 'Dell',
+#        }, 
+#        {
+#            'Model': 'Poweredge R730',
+#            'Vendor': 'Dell',
+#        }, 
+#        {
+#            'Model': 'Poweredge R930',
+#            'Vendor': 'Dell',
+#        }, 
+#        {
+#            'Model': 'ProLiant DL380 Gen9',
+#            'Vendor': 'HP',
+#        }, 
+#        {
+#            'Model': 'ProLiant DL360 Gen10',
+#            'Vendor': 'HP',
+#        }, 
+#        {
+#            'Model': 'T5-4',
+#            'Vendor': 'Oracle',
+#        }, 
+#        {
+#            'Model': 'T5-2',
+#            'Vendor': 'Oracle',
+#        }, 
+#    ]
     
     out_dat = []
 
     for model in models:
         if model['Vendor'].lower() == 'dell':
-            #out_dat.append(get_dell(driver, model))
-            continue
+            out_dat.append(get_dell(driver, model))
         elif model['Vendor'].lower() == 'hp':
-            ### Need to finish HP site is being very difficult
             out_dat.append(get_hp(driver, model))
-            #continue
         elif model['Vendor'].lower() == 'oracle':
-            #out_dat.append(get_oracle(model))
-            continue
+            out_dat.append(get_oracle(model))
     
     if not args.debug:
         driver.quit()
