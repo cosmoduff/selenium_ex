@@ -93,88 +93,71 @@ def get_hp(driver, server):
     model = hp_model(server['Model'])
     print(f'Model: {model}')
 
-    if "gen9" in server['Model'].lower():
-        url = "https://support.hpe.com/hpsc/doc/public/display?docId=emr_na-c05324275"
+    url = "https://support.hpe.com/hpesc/public/home"
 
     try:
-        response = requests.get(url)
-        response.raise_for_status()
-    except HTTPError as http_err:
-        print(f'HTTP error occurred: {http_err}')
-        sys.exit(1)
-    except Exception as e:
-        print(f'An unexpected error occured: {e}')
-        sys.exit(1)
+        driver.get(url)
 
-    servers_soup = BeautifulSoup(response.text, 'html.parser')
-
-    search_str = r'(.*' + model.lower() + '.*)'
-    print(f'Search string: {search_str}')
-
-    pattern = re.compile(search_str)
-
-    tds = servers_soup.find_all('td')
-
-    if not tds:
-        print('Unable to locate find tds in text')
-        print(servers_soup.prettify())
-        sys.exit(1)
-
-    #for block in servers_soup.find_all('td'):
-    for block in servers_soup.find_all('td'):
-        #print(f'td: {td}')
-        text = block.get_text().strip().lower()
-        #match = pattern.match(text)
-        if pattern.match(text):
-            link = block.find_next('a').get('href')
-            break
-        else:
-            print(f'Failed string: {block.get_text().lower()}')
-            return server 
-
-    try:
-        driver.get(link)
-
-        # wait for the bios quick filter to become visible
+        # wait for search box
         WebDriverWait(driver, timeout).until(
             EC.visibility_of_element_located(
-                (By.XPATH, "//a[@id='biosanchor']")
+                (By.XPATH, "/html/body/div[1]/div/div[3]/div/div[1]/div/div[2]/div[1]/div/div[1]/div/div/div[2]/div[1]/div[3]/div[3]/div[1]/input")
             )
         )
 
-        print("Found the biosquickfilter")
+        # send input
+        search_box = driver.find_element_by_xpath("/html/body/div[1]/div/div[3]/div/div[1]/div/div[2]/div[1]/div/div[1]/div/div/div[2]/div[1]/div[3]/div[3]/div[1]/input")
+        search_box.send_keys(server['Model'])
+        search_box.send_keys(Keys.RETURN)
 
-        # find and click the bios quick filter
-        bios_button = driver.find_element_by_xpath("//div[@id='biosquickfilter']")
-        bios_button.click()
+        /html/body/div[1]/div[1]/div/div[3]/div/div/div[4]/div[2]/div[14]/div[1]/div/div[1]/div/div[2]/div[2]/div[2]/div
 
-        print("The bios button was clicked")
-
-        # resizing because for some reason it does not work otherwise
-        #driver.set_window_size(1366, 1307)
-        #print(f'Size: {driver.get_window_size()}')
-
-        # wait for the results to be visible
+        # wait for result links
         WebDriverWait(driver, timeout).until(
             EC.visibility_of_element_located(
-                (By.XPATH, "//div[@class='coveo-list-layout CoveoResult']")
+                (By.XPATH, "/html/body/div[1]/div/div[3]/div/div[1]/div/div[2]/div[1]/div/div[1]/div/div/div[2]/div[1]/div[3]/div[3]/div[1]/input")
             )
         )
-        #WebDriverWait(driver, timeout).until(
-        #    EC.visibility_of_element_located(
-        #        (By.XPATH, "//div[@class='CoveoResultList']")
-        #    )
-        #)
-
-        print("Found table")
-
-        #heading = driver.find_element_by_xpath("//h2[@class='grommetux-heading']")
-
-        #action = ActionChains(driver)
-        #action.move_to_element(heading).perform()
-
-        source = BeautifulSoup(driver.page_source, 'html.parser')
-        print("Got source")
+#        # wait for the bios quick filter to become visible
+#        WebDriverWait(driver, timeout).until(
+#            EC.visibility_of_element_located(
+#                (By.XPATH, "//a[@id='biosanchor']")
+#            )
+#        )
+#
+#        print("Found the biosquickfilter")
+#
+#        # find and click the bios quick filter
+#        bios_button = driver.find_element_by_xpath("//div[@id='biosquickfilter']")
+#        bios_button.click()
+#
+#        print("The bios button was clicked")
+#
+#        # resizing because for some reason it does not work otherwise
+#        #driver.set_window_size(1366, 1307)
+#        #print(f'Size: {driver.get_window_size()}')
+#
+#        # wait for the results to be visible
+#        WebDriverWait(driver, timeout).until(
+#            EC.visibility_of_element_located(
+#                (By.XPATH, "//div[@class='coveo-list-layout CoveoResult']")
+#            )
+#        )
+#        #WebDriverWait(driver, timeout).until(
+#        #    EC.visibility_of_element_located(
+#        #        (By.XPATH, "//div[@class='CoveoResultList']")
+#        #    )
+#        #)
+#
+#        print("Found table")
+#
+#        #heading = driver.find_element_by_xpath("//h2[@class='grommetux-heading']")
+#
+#        #action = ActionChains(driver)
+#        #action.move_to_element(heading).perform()
+#
+#        source = BeautifulSoup(driver.page_source, 'html.parser')
+#        print("Got source")
     except Exception as e:
         source = driver.page_source
         print(f'Error: {e}')
@@ -185,40 +168,40 @@ def get_hp(driver, server):
 
         sys.exit(1)
         
-    res_box = source.find('div', {'class': 'CoveoResultList'})
-
-    if res_box:
-        print("Found results box")
-    else:
-        print("Did not find results box")
-
-    bios_items = res_box.findChildren(
-        "div", 
-        {'class': "coveo-result-cell hpe-coveo-swd-type-id-row"}
-    )
-
-    if bios_items:
-        print("Found bios items")
-    else:
-        print("Could not find bios items")
-
-    re_ver = re.compile('^(\d+)\.(\d+)')
-
-    for item in bios_items:
-        print(item)
-        version_field = item.find("span", 
-            {
-                "class": "CoveoFieldValue",
-                "data-field": "@kmswitemversion"
-            }
-        )
-
-        version = version_field.find('span')
-
-        if re_ver.search(version.text):
-            print(f'Found: {version.text}')
-
-    server['GA Firmware Version'] = None
+#    res_box = source.find('div', {'class': 'CoveoResultList'})
+#
+#    if res_box:
+#        print("Found results box")
+#    else:
+#        print("Did not find results box")
+#
+#    bios_items = res_box.findChildren(
+#        "div", 
+#        {'class': "coveo-result-cell hpe-coveo-swd-type-id-row"}
+#    )
+#
+#    if bios_items:
+#        print("Found bios items")
+#    else:
+#        print("Could not find bios items")
+#
+#    re_ver = re.compile('^(\d+)\.(\d+)')
+#
+#    for item in bios_items:
+#        print(item)
+#        version_field = item.find("span", 
+#            {
+#                "class": "CoveoFieldValue",
+#                "data-field": "@kmswitemversion"
+#            }
+#        )
+#
+#        version = version_field.find('span')
+#
+#        if re_ver.search(version.text):
+#            print(f'Found: {version.text}')
+#
+#    server['GA Firmware Version'] = None
 
     return server
 
@@ -397,13 +380,15 @@ def main():
 
     for model in models:
         if model['Vendor'].lower() == 'dell':
-            out_dat.append(get_dell(driver, model))
+            #out_dat.append(get_dell(driver, model))
+            continue
         elif model['Vendor'].lower() == 'hp':
             ### Need to finish HP site is being very difficult
-            #out_dat.append(get_hp(driver, model))
+            out_dat.append(get_hp(driver, model))
             #continue
         elif model['Vendor'].lower() == 'oracle':
-            out_dat.append(get_oracle(model))
+            #out_dat.append(get_oracle(model))
+            continue
     
     if not args.debug:
         driver.quit()
