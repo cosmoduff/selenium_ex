@@ -130,77 +130,56 @@ def get_hp(driver, server):
 
     url = "https://support.hpe.com/hpesc/public/home"
 
+    search_box_css = ".magic-box-input > input:nth-child(2)"
+    search_button = ".CoveoSearchButton"
+    bios_search_link = "div.coveo-list-layout:nth-child(1) > div:nth-child(1) > div:nth-child(2) > div:nth-child(2) > div:nth-child(3) > div:nth-child(1) > a:nth-child(1)"
+    revision_link_str = "#driversAndSoftwareTableResultList > table:nth-child(3) > tr:nth-child(2) > td:nth-child(7) > div:nth-child(1) > a:nth-child(1)"
+    revision_tab = "#ui-id-6"
+
     try:
         driver.get(url)
 
         # wait for search box
         WebDriverWait(driver, timeout).until(
             EC.visibility_of_element_located(
-                (By.XPATH, "/html/body/div[1]/div/div[3]/div/div[1]/div/div[2]/div[1]/div/div[1]/div/div/div[2]/div[1]/div[3]/div[3]/div[1]/input")
+                (By.CSS_SELECTOR, search_box_css)
             )
         )
 
         # send input
-        search_box = driver.find_element_by_xpath("/html/body/div[1]/div/div[3]/div/div[1]/div/div[2]/div[1]/div/div[1]/div/div/div[2]/div[1]/div[3]/div[3]/div[1]/input")
+        search_box = driver.find_element_by_css_selector(search_box_css)
         search_box.send_keys(server['Model'])
         search_box.send_keys(Keys.RETURN)
 
         # wait for bios link
         WebDriverWait(driver, timeout).until(
             EC.visibility_of_element_located(
-                (By.XPATH, "/html/body/div[1]/div[1]/div/div[3]/div/div/div[4]/div[2]/div[14]/div[1]/div/div[1]/div/div[2]/div[2]/div[2]/div/a[1]")
+                (By.CSS_SELECTOR, bios_search_link)
             )
         )
-
-        bios_link = driver.find_element_by_xpath("/html/body/div[1]/div[1]/div/div[3]/div/div/div[4]/div[2]/div[14]/div[1]/div/div[1]/div/div[2]/div[2]/div[2]/div/a[1]")
+        bios_link = driver.find_element_by_css_selector(bios_search_link)
         bios_link.click()
 
         # wait for the bios quick filter to become visible
-        WebDriverWait(driver, timeout).until(
-            EC.visibility_of_element_located(
-                (By.XPATH, "//a[@id='biosanchor']")
-            )
-        )
+        #WebDriverWait(driver, timeout).until(
+        #    EC.visibility_of_element_located(
+        #        (By.XPATH, "//a[@id='biosanchor']")
+        #    )
+        #)
 
-        # find and click the bios quick filter
-        bios_button = driver.find_element_by_xpath("//div[@id='biosquickfilter']")
-        bios_button.click()
-
-#        # wait for field containing the bios version
-#        WebDriverWait(driver, timeout).until(
-#            EC.visibility_of_element_located(
-#                (By.XPATH, "/html/body/div[1]/div[1]/div/div[3]/div/div/div[4]/div[3]/div[5]/div[10]/div/div[1]/div/div/div[2]/div/div[3]/div[1]/span[3]/span")
-#            )
-#        )
-#
-#        print("Bios field is there")
-#
-#        bios_field = driver.find_element_by_xpath("/html/body/div[1]/div[1]/div/div[3]/div/div/div[4]/div[3]/div[5]/div[10]/div/div[1]/div/div/div[2]/div/div[3]/div[1]/span[3]/span")
-#        bios_field.click()
-#
-#        field_html = bios_field.get_attribute('outerHTML')
-#        field_src = BeautifulSoup(field_html, 'html.parser')
-#        print(field_src.text)
+        ## find and click the bios quick filter
+        #bios_button = driver.find_element_by_xpath("//div[@id='biosquickfilter']")
+        #bios_button.click()
 
         driver.execute_script("window.scrollTo(0, document.body.scrollHeight/8);")
 
-        #wait for more details button
+        # get the link for the revsion history page and navigate to it
         WebDriverWait(driver, timeout).until(
             EC.visibility_of_element_located(
-                (By.XPATH, "/html/body/div[1]/div[1]/div/div[3]/div/div/div[4]/div[3]/div[5]/div[10]/div/div[1]/div/div/div[3]/div/div[1]")
+                (By.CSS_SELECTOR, revision_link_str)
             )
         )
-
-        more_details = driver.find_element_by_xpath("/html/body/div[1]/div[1]/div/div[3]/div/div/div[4]/div[3]/div[5]/div[10]/div/div[1]/div/div/div[3]/div/div[1]")
-        more_details.click()
-
-        # wait for the link to the dl page to be visible
-        WebDriverWait(driver, timeout).until(
-            EC.visibility_of_element_located(
-                (By.XPATH, "/html/body/div[1]/div[1]/div/div[3]/div/div/div[4]/div[3]/div[5]/div[10]/div/div[1]/div/div/div[3]/div/div[2]/table/tbody/tr[1]/td/span/a")
-            )
-        )
-        dl_link = driver.find_element_by_xpath("/html/body/div[1]/div[1]/div/div[3]/div/div/div[4]/div[3]/div[5]/div[10]/div/div[1]/div/div/div[3]/div/div[2]/table/tbody/tr[1]/td/span/a")
+        dl_link = driver.find_element_by_css_selector(revision_link_str)
 
         # get the a tag
         link_outter = dl_link.get_attribute('outerHTML')
@@ -211,10 +190,10 @@ def get_hp(driver, server):
         # wait for revision history
         WebDriverWait(driver, timeout).until(
             EC.visibility_of_element_located(
-                (By.XPATH, "//*[@id='ui-id-6']")
+                (By.CSS_SELECTOR, revision_tab)
             )
         )
-        rev_history = driver.find_element_by_xpath("//*[@id='ui-id-6']")
+        rev_history = driver.find_element_by_xpath(revision_tab)
         rev_history.click()
     
         source = BeautifulSoup(driver.page_source, 'html.parser')
@@ -247,8 +226,18 @@ def get_dell(driver, server):
     timeout = 20
 
     model = dell_model(server['Model'])
+
+    # create vars for all the locators we will need
+    os_str = "//select[@id='operating-system']"
+    naa_str = "//option[@value='NAA']"
+    ddl_str = "//select[@id='ddl-category']"
+    bios_str = "//option[@value='BI']"
+    drop_down_str = "button.details-control"
+    old_ver_link = "a.ml-2"
+
     
     url = "https://www.dell.com/support/home/us/en/04/product-support/product/" + model.lower() + "/drivers"
+
     try:
         driver.get(url)
         
@@ -259,36 +248,34 @@ def get_dell(driver, server):
         
         WebDriverWait(driver, timeout).until(
             EC.visibility_of_element_located(
-                (By.XPATH, "//select[@id='operating-system']")
+                (By.XPATH, os_str)
             )
         )
-
-        os_sort = driver.find_element_by_xpath("//select[@id='operating-system']")
+        os_sort = driver.find_element_by_xpath(os_str)
         os_sort.click()
 
         WebDriverWait(driver, timeout).until(
             EC.visibility_of_element_located(
-                (By.XPATH, "//option[@value='NAA']")
+                (By.XPATH, naa_str)
             )
         )
-
-        bios_select = driver.find_element_by_xpath("//option[@value='NAA']")
+        bios_select = driver.find_element_by_xpath(naa_str)
         bios_select.click()
 
         WebDriverWait(driver, timeout).until(
             EC.visibility_of_element_located(
-                (By.XPATH,"//select[@id='ddl-category']")
+                (By.XPATH, ddl_str)
             )
         )
-        cat_select = driver.find_element_by_xpath("//select[@id='ddl-category']")
+        cat_select = driver.find_element_by_xpath(ddl_str)
         cat_select.click()
 
         WebDriverWait(driver, timeout).until(
             EC.visibility_of_element_located(
-                (By.XPATH,"//option[@value='BI']")
+                (By.XPATH, bios_str)
             )
         )
-        cat_bios_sel = driver.find_element_by_xpath("//option[@value='BI']")
+        cat_bios_sel = driver.find_element_by_xpath(bio_str)
         cat_bios_sel.click()
 
         driver.execute_script("window.scrollTo(0, document.body.scrollHeight/2);")
@@ -316,26 +303,19 @@ def get_dell(driver, server):
     try:
         WebDriverWait(driver, timeout).until(
             EC.visibility_of_element_located(
-                (By.XPATH,"/html/body/div[2]/div/div[5]/div/div[8]/div/div[2]/div/section[1]/div/div[6]/div[1]/table/tbody/tr/td[6]/button")
+                (By.CSS_SELECTOR, drop_down_str)
             )
         )
-        dropdown = driver.find_element_by_xpath("/html/body/div[2]/div/div[5]/div/div[8]/div/div[2]/div/section[1]/div/div[6]/div[1]/table/tbody/tr/td[6]/button")
+        dropdown = driver.find_element_by_css_selector(drop_down_str)
         dropdown.click()
 
         WebDriverWait(driver, timeout).until(
             EC.visibility_of_element_located(
-                (By.XPATH,"/html/body/div[2]/div/div[5]/div/div[8]/div/div[2]/div/section[1]/div/div[6]/div[1]/table/tbody/tr[2]/td[2]/section/p[3]/a")
+                (By.CSS_SELECTOR, old_ver_link)
             )
         )
-        older_ver_link = driver.find_element_by_xpath("/html/body/div[2]/div/div[5]/div/div[8]/div/div[2]/div/section[1]/div/div[6]/div[1]/table/tbody/tr[2]/td[2]/section/p[3]/a")
+        older_ver_link = driver.find_element_by_css_selector(old_ver_link)
         older_ver_link.click()
-
-        WebDriverWait(driver, timeout).until(
-            EC.visibility_of_element_located(
-                (By.XPATH,"//*[@id='oldVersionBody']")
-            )
-        )
-
         source = BeautifulSoup(driver.page_source, 'html.parser')
 
         app_ver_table = source.find('table', class_="table mb-0 w-100")
